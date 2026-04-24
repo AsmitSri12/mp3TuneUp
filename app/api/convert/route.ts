@@ -33,8 +33,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'User-Agent': 'mp3TuneUp/1.0' },
       body: JSON.stringify({ url, quality: safeQuality }),
-      // Long timeout — conversion can take time for larger videos
-      signal: AbortSignal.timeout(130_000),
+      signal: AbortSignal.timeout(300_000),
     });
 
     if (!response.ok) {
@@ -48,17 +47,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: errorMsg }, { status: response.status });
     }
 
-    // Stream the MP3 response directly to the client
     const contentType = response.headers.get('content-type') || 'audio/mpeg';
     const contentDisposition = response.headers.get('content-disposition') || 'attachment; filename="audio.mp3"';
 
-    return new NextResponse(response.body, {
+    const contentLength = response.headers.get('content-length');
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': contentDisposition,
-        'Transfer-Encoding': 'chunked',
+        'Content-Length': contentLength || buffer.length.toString(),
         'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-store',
       },
     });
   } catch (err: unknown) {
